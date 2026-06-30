@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 
 from check_grades import (
+    HealthCheckError,
+    health_failure_message,
     looks_like_pushplus_token,
     mask_secret,
     parse_cookie_header,
@@ -126,6 +128,10 @@ class ConfigCheckTest(unittest.TestCase):
         message = safe_failure_message("教务登录态失效")
         self.assertNotIn("TOKEN", message)
         self.assertNotIn("COOKIE", message)
+
+    def test_health_failure_message_classifies_auth_and_tests(self) -> None:
+        self.assertIn("教务登录态失效", health_failure_message(RucAuthError("401")))
+        self.assertIn("代码自检未通过", health_failure_message(HealthCheckError("代码自检未通过")))
 
 
 if __name__ == "__main__":

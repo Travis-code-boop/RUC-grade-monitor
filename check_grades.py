@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import sys
+import unittest
 
 from config import load_settings
 from grade_diff import find_new_grades, fingerprint_set, normalize_grade_rows
@@ -19,12 +20,17 @@ from ruc_jw_client import (
 from state_store import load_state, save_state
 
 
+class HealthCheckError(RuntimeError):
+    pass
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Monitor RUC JW grade updates.")
     parser.add_argument("--dry-run", action="store_true", help="Do not notify or save state.")
     parser.add_argument("--notify-test", action="store_true", help="Send a PushPlus test message.")
     parser.add_argument("--baseline-notify", action="store_true", help="Notify on first baseline run.")
     parser.add_argument("--config-check", action="store_true", help="Print a redacted local config check.")
+    parser.add_argument("--health-check", action="store_true", help="Run tests, query grades, and notify health status.")
     args = parser.parse_args()
 
     settings = load_settings()
@@ -42,6 +48,9 @@ def main() -> int:
         except NotifyError as exc:
             print(f"PushPlus test failed: {exc}", file=sys.stderr)
             return 1
+
+    if args.health_check:
+        return run_health_check(settings, notifier)
 
     try:
         client = RucJwClient(settings)
@@ -114,6 +123,46 @@ def warn_if_token_near_expiry(
         notifier.send("教务 TOKEN 即将过期", render_plain(f"预计 {hours} 小时内过期，请准备更新。"))
 
 
+def run_health_check(settings, notifier: PushPlusNotifier) -> int:
+    try:
+        test_count = run_unit_tests()
+        client = RucJwClient(settings)
+        rows = client.fetch_undergraduate_grades()
+        grades = normalize_grade_rows(rows)
+        if not grades:
+            raise HealthCheckError("教务接口可访问，但没有解析到可见成绩。")
+
+        message = (
+            "成绩提醒健康检查正常。"
+            f"单元测试 {test_count} 个通过，教务查询正常，可见成绩 {len(grades)} 条，"
+            "PushPlus 通道正常。"
+        )
+        notifier.send("成绩提醒健康检查正常", render_plain(message))
+        print(message)
+        return 0
+    except NotifyError as exc:
+        print(f"成绩提醒健康检查失败: PushPlus 通道无法发送消息: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        reason = health_failure_message(exc)
+        print(f"成绩提醒健康检查失败: {reason}", file=sys.stderr)
+        try:
+            notifier.send("成绩提醒健康检查失败", render_plain(reason))
+        except Exception as notify_exc:
+            print(f"Failed to send health failure notification: {notify_exc}", file=sys.stderr)
+        return 1
+
+
+def run_unit_tests() -> int:
+    suite = unittest.defaultTestLoader.discover("tests")
+    result = unittest.TextTestRunner(verbosity=1).run(suite)
+    if not result.wasSuccessful():
+        raise HealthCheckError(
+            f"代码自检未通过：失败 {len(result.failures)} 个，错误 {len(result.errors)} 个。"
+        )
+    return result.testsRun
+
+
 def notify_failure(
     notifier: PushPlusNotifier,
     title: str,
@@ -144,6 +193,20 @@ def safe_failure_message(title: str) -> str:
     if "网络" in title:
         return "教务网络请求失败，请查看 GitHub Actions 日志。"
     return "成绩监控运行失败，请查看 GitHub Actions 日志。"
+
+
+def health_failure_message(exc: BaseException) -> str:
+    if isinstance(exc, (RucTokenExpired, RucAuthError)):
+        return "教务登录态失效，请重新登录教务系统，并更新同一次成绩请求里的教务凭据。"
+    if isinstance(exc, RucResponseError):
+        return "教务成绩接口返回异常，请查看 GitHub Actions 日志。"
+    if isinstance(exc, RucJwError):
+        return "教务查询失败，请查看 GitHub Actions 日志。"
+    if is_network_error(exc):
+        return "网络请求失败，请查看 GitHub Actions 日志。"
+    if isinstance(exc, HealthCheckError):
+        return str(exc)
+    return "成绩提醒健康检查失败，请查看 GitHub Actions 日志。"
 
 
 def print_config_check(settings) -> None:
