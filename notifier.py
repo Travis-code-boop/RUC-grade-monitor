@@ -44,7 +44,7 @@ def render_new_grades(grades: Iterable[Grade]) -> str:
     items = "".join(
         f"<li>{html.escape(grade.display_line())}</li>" for grade in grades
     )
-    return f"<p>教务系统出现新的课程成绩：</p><ul>{items}</ul>"
+    return f"<p>出成绩了！：</p><ul>{items}</ul>"
 
 
 def render_plain(text: str) -> str:
