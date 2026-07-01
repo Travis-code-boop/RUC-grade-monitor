@@ -4,7 +4,7 @@
 
 默认运行方式是 GitHub Actions，每 15 分钟执行一次。不需要自己的服务器，也不需要电脑常开。
 
-另有一条健康检查 GitHub Actions，每 6 小时执行一次，从北京时间每天 00:00 开始，随后在 06:00、12:00、18:00 运行。健康检查会跑单元测试、查询教务接口并发送 PushPlus 消息；如果检查失败，也会尽量发送失败提醒。
+另有一条健康检查 GitHub Actions，每 6 小时执行一次，从北京时间每天 00:11 开始，随后在 06:11、12:11、18:11 运行。健康检查会跑单元测试、查询教务接口并发送 PushPlus 消息；如果检查失败，也会尽量发送失败提醒。
 
 ## 需要准备
 
@@ -73,7 +73,7 @@ python check_grades.py
 
 然后进入 `Actions -> grade-monitor -> Run workflow` 手动运行一次。之后 GitHub Actions 会按 `.github/workflows/grade-monitor.yml` 每 15 分钟执行。
 
-健康检查在 `.github/workflows/grade-health-check.yml` 中配置。它按北京时间每天 00:00、06:00、12:00、18:00 执行，也可以在 `Actions -> grade-health-check -> Run workflow` 手动触发。
+健康检查在 `.github/workflows/grade-health-check.yml` 中配置。它按北京时间每天 00:11、06:11、12:11、18:11 执行，也可以在 `Actions -> grade-health-check -> Run workflow` 手动触发。
 
 状态保存在 `seen_grades.json`，里面只有 hash 指纹，不保存课程名和分数明文。
 
