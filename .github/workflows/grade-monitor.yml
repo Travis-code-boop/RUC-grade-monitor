@@ -1,0 +1,63 @@
+name: grade-monitor
+
+on:
+  workflow_dispatch:
+  # To enable automatic hourly checks in your own private repo, uncomment:
+  # schedule:
+  #   - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grade-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests
+
+      - name: Check private config
+        env:
+          RUC_USERNAME: ${{ secrets.RUC_USERNAME }}
+          RUC_PASSWORD: ${{ secrets.RUC_PASSWORD }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          GRADE_HASH_SALT: ${{ secrets.GRADE_HASH_SALT }}
+          RUC_PAGE_SIZE: "100"
+        run: python check_grades.py --config-check
+
+      - name: Run grade monitor
+        env:
+          RUC_USERNAME: ${{ secrets.RUC_USERNAME }}
+          RUC_PASSWORD: ${{ secrets.RUC_PASSWORD }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          GRADE_HASH_SALT: ${{ secrets.GRADE_HASH_SALT }}
+          RUC_PAGE_SIZE: "100"
+        run: python check_grades.py
+
+      - name: Commit state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seen_grades.json
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+            exit 0
+          fi
+          git pull --rebase --autostash origin main
+          git add seen_grades.json
+          if git diff --cached --quiet; then
+            echo "State already up to date after syncing remote."
+            exit 0
+          fi
+          git commit -m "Update grade monitor state"
+          git push

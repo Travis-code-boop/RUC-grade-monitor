@@ -1,12 +1,16 @@
 # 人大成绩自动监控
 
-这是中国人民大学教务成绩监控项目的公开源码模板。它包含成绩查询、变化检测和 PushPlus 通知代码，但**不在公开仓库运行真实 GitHub Actions**。
+这是中国人民大学教务成绩监控项目的公开源码模板。它包含成绩查询、变化检测、PushPlus 通知和可手动运行的 GitHub Actions 模板。
 
 真实监控应放在 private repo 中运行，避免公开暴露 Actions 执行记录、运行时间、状态文件和日志。
 
 ## 公开仓库包含什么
 
 ```text
+.github/workflows/
+  grade-monitor.yml        # 手动运行的主监控 Action 模板
+  grade-health-check.yml   # 手动运行的健康检查 Action 模板
+
 check_grades.py            # 程序入口，处理 CLI 参数和主执行流程
 config.py                  # 读取环境变量、.env 和 GitHub Secrets
 ruc_auth.py                # 人大统一身份认证账号密码登录
@@ -24,7 +28,7 @@ README.md
 
 公开仓库不包含：
 
-- 真实 GitHub Actions workflows
+- 自动运行的真实 GitHub Actions schedules
 - 真实 `seen_grades.json` 状态文件
 - `.env`
 - GitHub Secrets
@@ -32,7 +36,7 @@ README.md
 
 ## 私有运行仓库
 
-当前真实运行仓库已经迁移到 private repo。真实监控需要在 private repo 中配置：
+建议把真实监控放在 private repo 中运行。克隆或 fork 后，在运行仓库中配置：
 
 | Secret | 说明 |
 | --- | --- |
@@ -42,6 +46,20 @@ README.md
 | `GRADE_HASH_SALT` | 任意随机字符串，用于保护状态文件里的成绩指纹 |
 
 账号密码登录成功后，程序只在本次运行内存里使用教务接口需要的临时 token/cookie，不会把它们写入 GitHub Secrets。
+
+## GitHub Actions
+
+公开模板内置两条 workflow：
+
+- `grade-monitor`：查询成绩、对比状态、发现变化时通过 PushPlus 推送，并提交 `seen_grades.json`。
+- `grade-health-check`：运行健康检查并发送 PushPlus 健康通知。
+
+默认只启用 `workflow_dispatch`，也就是手动运行。设置好 Secrets 后，进入 `Actions` 页面分别选择 `grade-monitor` 和 `grade-health-check`，点击 `Run workflow` 即可运行。
+
+如果要在自己的 private repo 里自动定时运行，可以取消 workflow 文件里 `schedule` 部分的注释：
+
+- `grade-monitor` 示例：每小时第 17 分钟运行。
+- `grade-health-check` 示例：北京时间每天 `00:11`、`06:11`、`12:11`、`18:11` 运行。
 
 ## 登录策略
 

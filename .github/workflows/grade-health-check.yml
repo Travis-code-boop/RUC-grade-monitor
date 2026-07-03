@@ -1,0 +1,43 @@
+name: grade-health-check
+
+on:
+  workflow_dispatch:
+  # To enable automatic health checks in your own private repo, uncomment:
+  # schedule:
+  #   # GitHub cron uses UTC. This runs at 00:11, 06:11, 12:11, 18:11 in Asia/Shanghai.
+  #   - cron: "11 4,10,16,22 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grade-health-check
+  cancel-in-progress: false
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check private config
+        env:
+          RUC_USERNAME: ${{ secrets.RUC_USERNAME }}
+          RUC_PASSWORD: ${{ secrets.RUC_PASSWORD }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          GRADE_HASH_SALT: ${{ secrets.GRADE_HASH_SALT }}
+          RUC_PAGE_SIZE: "100"
+        run: python check_grades.py --config-check
+
+      - name: Run health check and notify
+        env:
+          RUC_USERNAME: ${{ secrets.RUC_USERNAME }}
+          RUC_PASSWORD: ${{ secrets.RUC_PASSWORD }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          GRADE_HASH_SALT: ${{ secrets.GRADE_HASH_SALT }}
+          RUC_PAGE_SIZE: "100"
+        run: python check_grades.py --health-check
